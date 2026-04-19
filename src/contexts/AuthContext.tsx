@@ -30,49 +30,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fUser) => {
-      setFirebaseUser(fUser);
-      
-      if (fUser) {
-        // Fetch user role from Firestore
-        const userRef = doc(db, 'users', fUser.uid);
-        const userSnap = await getDoc(userRef);
+      try {
+        setFirebaseUser(fUser);
         
-        if (userSnap.exists()) {
-          setUser(userSnap.data() as User);
-        } else {
-          // Create default user document
-          let assignedRole: Role = 'Guest';
-
-          if (fUser.email === 'twgcrp@gmail.com') {
-            assignedRole = 'Admin';
-          } else if (fUser.email) {
-            // Check for pending invitation
-            const invRef = doc(db, 'invitations', fUser.email.toLowerCase());
-            const invSnap = await getDoc(invRef);
-
-            if (invSnap.exists() && invSnap.data().status === 'Pending') {
-              assignedRole = invSnap.data().role as Role;
-              // Mark invite as accepted
-              await updateDoc(invRef, { status: 'Accepted' });
-            }
-          }
-
-          const newUser: User = {
-            uid: fUser.uid,
-            email: fUser.email || '',
-            displayName: fUser.displayName || 'User',
-            role: assignedRole,
-            assignedJobs: [],
-          };
+        if (fUser) {
+          // Fetch user role from Firestore
+          const userRef = doc(db, 'users', fUser.uid);
+          const userSnap = await getDoc(userRef);
           
-          await setDoc(userRef, { ...newUser, createdAt: Date.now() });
-          setUser(newUser);
+          if (userSnap.exists()) {
+            setUser(userSnap.data() as User);
+          } else {
+            // Create default user document
+            let assignedRole: Role = 'Guest';
+
+            if (fUser.email === 'twgcrp@gmail.com') {
+              assignedRole = 'Admin';
+            } else if (fUser.email) {
+              // Check for pending invitation
+              const invRef = doc(db, 'invitations', fUser.email.toLowerCase());
+              const invSnap = await getDoc(invRef);
+
+              if (invSnap.exists() && invSnap.data().status === 'Pending') {
+                assignedRole = invSnap.data().role as Role;
+                // Mark invite as accepted
+                await updateDoc(invRef, { status: 'Accepted' });
+              }
+            }
+
+            const newUser: User = {
+              uid: fUser.uid,
+              email: fUser.email || '',
+              displayName: fUser.displayName || 'User',
+              role: assignedRole,
+              assignedJobs: [],
+            };
+            
+            await setDoc(userRef, { ...newUser, createdAt: Date.now() });
+            setUser(newUser);
+          }
+        } else {
+          setUser(null);
         }
-      } else {
+      } catch (error) {
+        console.error('Auth flow error:', error);
         setUser(null);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     });
 
     return () => unsubscribe();

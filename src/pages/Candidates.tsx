@@ -26,6 +26,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -55,11 +56,19 @@ import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 import { useAuth } from '@/src/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 
 import { useData } from '@/src/contexts/DataContext';
+import { CandidateProfileDialog } from '@/src/components/CandidateProfileDialog';
 
 type ParsedItem = {
   file: File;
@@ -70,8 +79,11 @@ type ParsedItem = {
 export default function Candidates() {
   const { candidates, addCandidate, deleteCandidate } = useData();
   const [searchQuery, setSearchQuery] = useState('');
+  const [skillFilter, setSkillFilter] = useState('');
+  const [experienceFilter, setExperienceFilter] = useState('all');
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [newCandidate, setNewCandidate] = useState<Partial<Candidate>>({
     name: '',
     email: '',
@@ -88,6 +100,15 @@ export default function Candidates() {
   if (user?.role === 'HiringManager') {
     return <Navigate to="/" replace />;
   }
+
+  const handleEmailAction = (candidate: Candidate, type: 'invite' | 'reject') => {
+    const subject = type === 'invite' ? 'Interview Invitation - Rozgaar' : 'Application Update - Rozgaar';
+    const body = type === 'invite' 
+      ? `Hi ${candidate.name},\n\nWe would like to invite you to an interview for an open position. Please let us know your availability.\n\nBest,\nRozgaar Team`
+      : `Hi ${candidate.name},\n\nThank you for your application. Unfortunately, we will not be moving forward at this time.\n\nBest,\nRozgaar Team`;
+    
+    window.open(`mailto:${candidate.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+  };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (!acceptedFiles.length) return;
@@ -148,11 +169,24 @@ export default function Candidates() {
     multiple: true
   } as any);
 
-  const filteredCandidates = candidates.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.skills.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredCandidates = candidates.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          c.email.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesSkill = skillFilter === '' || 
+                         (c.skills && c.skills.some(s => s.toLowerCase().includes(skillFilter.toLowerCase())));
+    
+    let matchesExperience = true;
+    if (experienceFilter !== 'all') {
+      const exp = c.experience || 0;
+      if (experienceFilter === '0-2') matchesExperience = exp >= 0 && exp <= 2;
+      else if (experienceFilter === '3-5') matchesExperience = exp >= 3 && exp <= 5;
+      else if (experienceFilter === '6-9') matchesExperience = exp >= 6 && exp <= 9;
+      else if (experienceFilter === '10+') matchesExperience = exp >= 10;
+    }
+
+    return matchesSearch && matchesSkill && matchesExperience;
+  });
 
   const handleSaveParsed = async () => {
     const successful = parsedCandidates.filter(p => p.status === 'success');
@@ -479,16 +513,35 @@ export default function Candidates() {
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row items-center gap-4">
+        <div className="relative flex-1 w-full max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by name, email, or skills..."
+            placeholder="Search by name or email..."
             className="pl-9"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
+        <div className="flex-1 w-full max-w-sm">
+          <Input
+            placeholder="Filter by skill (e.g., React)..."
+            value={skillFilter}
+            onChange={(e) => setSkillFilter(e.target.value)}
+          />
+        </div>
+        <Select value={experienceFilter} onValueChange={setExperienceFilter}>
+          <SelectTrigger className="w-full sm:w-[180px]">
+            <SelectValue placeholder="Experience Level" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Experience</SelectItem>
+            <SelectItem value="0-2">0-2 years</SelectItem>
+            <SelectItem value="3-5">3-5 years</SelectItem>
+            <SelectItem value="6-9">6-9 years</SelectItem>
+            <SelectItem value="10+">10+ years</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <Card>
@@ -499,7 +552,7 @@ export default function Candidates() {
                 <TableHead>Candidate</TableHead>
                 <TableHead>Experience</TableHead>
                 <TableHead>Location</TableHead>
-                <TableHead>Tags</TableHead>
+                <TableHead>Skills</TableHead>
                 <TableHead>Source</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -526,12 +579,17 @@ export default function Candidates() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-1">
-                      {c.tags.map(tag => (
-                        <Badge key={tag} variant="outline" className="text-[10px] px-1 py-0 h-4">
-                          {tag}
+                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                      {c.skills?.slice(0, 3).map(skill => (
+                        <Badge key={skill} variant="outline" className="text-[10px] px-1 py-0 h-4">
+                          {skill}
                         </Badge>
                       ))}
+                      {(c.skills?.length || 0) > 3 && (
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+                          +{(c.skills?.length || 0) - 3}
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -546,8 +604,10 @@ export default function Candidates() {
                         <MoreHorizontal className="h-4 w-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>View Profile</DropdownMenuItem>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setSelectedProfileId(c.id)}>View Profile</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEmailAction(c, 'invite')}>Send Interview Invite</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEmailAction(c, 'reject')}>Send Rejection</DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-destructive" onClick={() => deleteCandidate(c.id)}>Delete</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -565,6 +625,12 @@ export default function Candidates() {
           </Table>
         </CardContent>
       </Card>
+
+      <CandidateProfileDialog 
+        candidateId={selectedProfileId}
+        isOpen={!!selectedProfileId}
+        onClose={() => setSelectedProfileId(null)}
+      />
     </div>
   );
 }

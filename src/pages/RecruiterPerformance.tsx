@@ -6,7 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  LineChart, Line, AreaChart, Area
+  LineChart, Line, AreaChart, Area, Cell
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -80,19 +80,55 @@ const PERFORMANCE_DATA: Record<string, any> = {
   }
 };
 
+import { useData } from '@/src/contexts/DataContext';
+
 export default function RecruiterPerformance() {
   const [selectedRecruiter, setSelectedRecruiter] = useState('all');
   const [dateRange, setDateRange] = useState({ start: '2026-01-01', end: '2026-04-09' });
   const { user } = useAuth();
+  const { applications, candidates } = useData();
 
   if (user?.role === 'HiringManager') {
     return <Navigate to="/" replace />;
   }
 
-  const data = useMemo(() => PERFORMANCE_DATA[selectedRecruiter] || PERFORMANCE_DATA['all'], [selectedRecruiter]);
+  // Generate dynamic data from context
+  const data = useMemo(() => {
+    // Note: To filter by date, we will assume applications.updatedAt handles the stage logic
+    const startDate = new Date(dateRange.start).getTime();
+    const endDate = new Date(dateRange.end).getTime() + 86400000; // include end of day
 
-  const conversionRate = ((data.placed / data.sourced) * 100).toFixed(1);
-  const screeningRate = ((data.screened / data.sourced) * 100).toFixed(1);
+    const filteredApps = applications.filter(app => {
+      const matchRecruiter = selectedRecruiter === 'all' ? true : true; // In a full implementation, app needs recruiterId mapping
+      const matchDate = app.updatedAt >= startDate && app.updatedAt <= endDate;
+      return matchRecruiter && matchDate;
+    });
+
+    const sourcedCount = candidates.filter(c => c.createdAt >= startDate && c.createdAt <= endDate).length;
+    const screenedCount = filteredApps.filter(a => ['Shortlisted', 'Interview', 'Offered', 'Joined'].includes(a.status)).length;
+    const interviewedCount = filteredApps.filter(a => ['Interview', 'Offered', 'Joined'].includes(a.status)).length;
+    const placedCount = filteredApps.filter(a => a.status === 'Joined').length;
+
+    return {
+      sourced: sourcedCount,
+      screened: screenedCount,
+      interviewed: interviewedCount,
+      placed: placedCount,
+      timeToFill: 22, // Static fallback as calculating this requires historical stage change timestamps
+      funnel: [
+        { stage: 'Sourced', count: sourcedCount },
+        { stage: 'Screened', count: screenedCount },
+        { stage: 'Interviewed', count: interviewedCount },
+        { stage: 'Placed', count: placedCount },
+      ],
+      timeToFillTrend: [
+        { month: 'Jan', days: 28 }, { month: 'Feb', days: 26 }, { month: 'Mar', days: 24 }, { month: 'Apr', days: 22 }
+      ]
+    };
+  }, [applications, candidates, selectedRecruiter, dateRange]);
+
+  const conversionRate = data.sourced > 0 ? ((data.placed / data.sourced) * 100).toFixed(1) : "0.0";
+  const screeningRate = data.sourced > 0 ? ((data.screened / data.sourced) * 100).toFixed(1) : "0.0";
 
   return (
     <div className="space-y-8">
@@ -200,7 +236,7 @@ export default function RecruiterPerformance() {
                 />
                 <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={32}>
                   {data.funnel.map((entry: any, index: number) => (
-                    <cell key={`cell-${index}`} fill={['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'][index % 4]} />
+                    <Cell key={`cell-${index}`} fill={['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'][index % 4]} />
                   ))}
                 </Bar>
               </BarChart>

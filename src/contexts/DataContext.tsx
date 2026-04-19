@@ -16,7 +16,7 @@ import {
   doc,
   getDocFromServer
 } from 'firebase/firestore';
-import { Client, Job, Candidate, Application } from '@/src/types';
+import { Client, Job, Candidate, Application, ActivityLog } from '@/src/types';
 import { toast } from 'sonner';
 
 enum OperationType {
@@ -76,14 +76,18 @@ interface DataContextType {
   jobs: Job[];
   candidates: Candidate[];
   applications: Application[];
+  activityLogs: ActivityLog[];
   loading: boolean;
   addClient: (client: Omit<Client, 'id' | 'createdAt'>) => Promise<void>;
   addJob: (job: Omit<Job, 'id' | 'createdAt'>) => Promise<void>;
   addCandidate: (candidate: Omit<Candidate, 'id' | 'createdAt'>) => Promise<void>;
+  addApplication: (application: Omit<Application, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateJobStatus: (jobId: string, status: Job['status']) => Promise<void>;
+  updateApplicationStatus: (appId: string, status: Application['status'], extra?: Partial<Application>) => Promise<void>;
   deleteClient: (clientId: string) => Promise<void>;
   deleteJob: (jobId: string) => Promise<void>;
   deleteCandidate: (candidateId: string) => Promise<void>;
+  addActivityLog: (log: Omit<ActivityLog, 'id' | 'timestamp'>) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -101,6 +105,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [jobs, setJobs] = useState<Job[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -144,9 +149,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       query(collection(db, 'applications'), orderBy('createdAt', 'desc')),
       (snapshot) => {
         setApplications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Application)));
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'applications');
+      }
+    );
+
+    const unsubLogs = onSnapshot(
+      query(collection(db, 'activityLogs'), orderBy('timestamp', 'desc')),
+      (snapshot) => {
+        setActivityLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ActivityLog)));
         setLoading(false);
       },
-      (error) => handleFirestoreError(error, OperationType.LIST, 'applications')
+      (error) => {
+        setLoading(false);
+        handleFirestoreError(error, OperationType.LIST, 'activityLogs');
+      }
     );
 
     return () => {
@@ -154,6 +172,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubJobs();
       unsubCandidates();
       unsubApps();
+      unsubLogs();
     };
   }, []);
 
@@ -187,6 +206,60 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'candidates');
+    }
+  };
+
+  const addApplication = async (application: Omit<Application, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      await addDoc(collection(db, 'applications'), {
+        ...application,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      // Automatically log application created
+      if (auth.currentUser) {
+        await addActivityLog({
+          candidateId: application.candidateId,
+          action: 'Applied to Job',
+          details: `Application created for job ${application.jobId}.`,
+          userName: auth.currentUser.displayName || 'Unknown User'
+        });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'applications');
+    }
+  };
+
+  const addActivityLog = async (log: Omit<ActivityLog, 'id' | 'timestamp'>) => {
+    try {
+      await addDoc(collection(db, 'activityLogs'), {
+        ...log,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'activityLogs');
+    }
+  };
+
+  const updateApplicationStatus = async (appId: string, status: Application['status'], extra?: Partial<Application>) => {
+    try {
+      await updateDoc(doc(db, 'applications', appId), {
+        status,
+        updatedAt: Date.now(),
+        ...extra,
+      });
+      
+      const app = applications.find(a => a.id === appId);
+      if (app && auth.currentUser) {
+        await addActivityLog({
+          candidateId: app.candidateId,
+          action: 'Status Updated',
+          details: `Moved from ${app.status} to ${status}.`,
+          userName: auth.currentUser.displayName || 'Unknown User'
+        });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `applications/${appId}`);
     }
   };
 
@@ -227,15 +300,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clients, 
       jobs, 
       candidates, 
-      applications, 
+      applications,
+      activityLogs,
       loading,
       addClient,
       addJob,
       addCandidate,
+      addApplication,
       updateJobStatus,
+      updateApplicationStatus,
       deleteClient,
       deleteJob,
-      deleteCandidate
+      deleteCandidate,
+      addActivityLog
     }}>
       {children}
     </DataContext.Provider>

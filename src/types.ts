@@ -19,6 +19,7 @@ export type User = {
   displayName: string;
   role: Role;
   assignedJobs?: string[]; // For Hiring Managers
+  createdAt?: number;
 };
 
 export type Client = {
@@ -71,6 +72,15 @@ export type Candidate = {
 };
 
 export type PipelineStatus = 'Shortlisted' | 'Interview' | 'Offered' | 'Joined' | 'Dropped';
+
+export type ActivityLog = {
+  id: string;
+  candidateId: string;
+  action: string;
+  details: string;
+  userName: string;
+  timestamp: number;
+};
 
 export type Application = {
   id: string;

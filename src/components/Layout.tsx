@@ -57,8 +57,24 @@ export function Sidebar({ className }: { className?: string }) {
     <div className={cn("pb-12 h-full border-r bg-card", className)}>
       <div className="space-y-4 py-4">
         <div className="px-6 py-2">
-          <h2 className="text-2xl font-bold tracking-tight text-primary">RecruitOS</h2>
-          <p className="text-xs text-muted-foreground">Placement Consulting Firm</p>
+          <Link to="/" className="block">
+            <img 
+              src="/logo.png" 
+              alt="Rozgaar Logo" 
+              className="h-12 w-auto object-contain max-w-full"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+            <div className="hidden">
+              <div className="flex items-baseline mb-1">
+                <span className="text-4xl font-black text-primary leading-none" style={{ fontFamily: 'system-ui, sans-serif' }}>र</span>
+                <span className="text-3xl font-black text-secondary tracking-tight leading-none" style={{ fontFamily: 'comic sans ms, cursive, sans-serif' }}>ozgaar</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground font-medium pl-1 uppercase tracking-widest mt-1">Creating Employment</p>
+            </div>
+          </Link>
         </div>
         <Separator />
         <div className="px-3 py-2">
@@ -67,9 +83,9 @@ export function Sidebar({ className }: { className?: string }) {
               <Button
                 key={item.href}
                 render={<Link to={item.href} />}
-                nativeButton={false}
                 variant={location.pathname === item.href ? "secondary" : "ghost"}
                 className="w-full justify-start gap-3"
+                nativeButton={false}
               >
                 <item.icon className="h-4 w-4" />
                 {item.label}
@@ -138,7 +154,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Pending Approval</h1>
           <p className="text-muted-foreground">
-            Your account has been created, but you need an invitation from an Administrator to access the RecruitOS platform.
+            Your account has been created, but you need an invitation from an Administrator to access the Rozgaar platform.
           </p>
           <p className="text-sm text-muted-foreground">
             If you believe this is an error, please contact your team administrator.

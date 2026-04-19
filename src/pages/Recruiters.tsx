@@ -87,11 +87,12 @@ export default function Recruiters() {
           <p className="text-muted-foreground">Manage your recruiting team.</p>
         </div>
         
+        <Button className="gap-2" onClick={() => setIsInviteOpen(true)}>
+          <UserPlus className="h-4 w-4" />
+          Invite Recruiter
+        </Button>
+
         <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
-          <Button className="gap-2" onClick={() => setIsInviteOpen(true)}>
-            <UserPlus className="h-4 w-4" />
-            Invite Recruiter
-          </Button>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Invite a new Recruiter</DialogTitle>

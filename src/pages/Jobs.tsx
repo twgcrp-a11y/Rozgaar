@@ -53,13 +53,19 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { BrainCircuit } from 'lucide-react';
+import { generateJobDescription } from '@/src/services/geminiService';
 
 import { useData } from '@/src/contexts/DataContext';
 
 export default function Jobs() {
   const { jobs, clients, addJob, deleteJob } = useData();
   const [searchQuery, setSearchQuery] = useState('');
+  const [experienceFilter, setExperienceFilter] = useState('all');
+  const [jobTypeFilter, setJobTypeFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [newJob, setNewJob] = useState<Partial<Job>>({
     roleTitle: '',
     clientId: '',
@@ -74,6 +80,23 @@ export default function Jobs() {
   const { user } = useAuth();
   
   const canEdit = user?.role === 'Admin' || user?.role === 'Recruiter';
+
+  const handleGenerateJD = async () => {
+    if (!newJob.roleTitle || !newJob.skillsRequired || newJob.skillsRequired.length === 0) {
+      toast.error('Please enter a Role Title and at least one Skill to generate a description.');
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const jd = await generateJobDescription(newJob.roleTitle, newJob.skillsRequired);
+      setNewJob({ ...newJob, description: jd });
+      toast.success('Job description generated!');
+    } catch (error) {
+      toast.error('Failed to generate description. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const handleAddJob = async () => {
     if (!newJob.roleTitle || !newJob.clientId) {
@@ -120,10 +143,18 @@ export default function Jobs() {
     const matchesSearch = job.roleTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           job.clientName.toLowerCase().includes(searchQuery.toLowerCase());
     
+    let matchesExperience = true;
+    if (experienceFilter === 'entry') matchesExperience = job.experienceRequired >= 0 && job.experienceRequired <= 2;
+    else if (experienceFilter === 'mid') matchesExperience = job.experienceRequired >= 3 && job.experienceRequired <= 5;
+    else if (experienceFilter === 'senior') matchesExperience = job.experienceRequired >= 6;
+
+    const matchesJobType = jobTypeFilter === 'all' || job.jobType === jobTypeFilter;
+    const matchesClient = clientFilter === 'all' || job.clientId === clientFilter;
+
     if (user?.role === 'HiringManager') {
-      return matchesSearch && user.assignedJobs?.includes(job.id);
+      return matchesSearch && matchesExperience && matchesJobType && matchesClient && user.assignedJobs?.includes(job.id);
     }
-    return matchesSearch;
+    return matchesSearch && matchesExperience && matchesJobType && matchesClient;
   });
 
   return (
@@ -158,7 +189,7 @@ export default function Jobs() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="client">Client</Label>
-                    <Select onValueChange={val => setNewJob({...newJob, clientId: val})}>
+                    <Select onValueChange={(val: string) => setNewJob({...newJob, clientId: val})}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select Client" />
                       </SelectTrigger>
@@ -233,7 +264,19 @@ export default function Jobs() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="description">Job Description</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="description">Job Description</Label>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-xs bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 hover:text-indigo-800"
+                      onClick={handleGenerateJD}
+                      disabled={isGenerating}
+                    >
+                      <BrainCircuit className="h-3 w-3 mr-1" />
+                      {isGenerating ? 'Generating...' : 'Generate with AI'}
+                    </Button>
+                  </div>
                   <Textarea 
                     id="description" 
                     placeholder="Describe the role and responsibilities..." 
@@ -252,8 +295,8 @@ export default function Jobs() {
         )}
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="relative flex-1 w-full sm:max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search jobs or clients..."
@@ -261,6 +304,43 @@ export default function Jobs() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+        </div>
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <Select value={clientFilter} onValueChange={setClientFilter}>
+            <SelectTrigger className="w-[140px] sm:w-[160px]">
+              <SelectValue placeholder="All Clients" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Clients</SelectItem>
+              {clients.map(client => (
+                <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={jobTypeFilter} onValueChange={setJobTypeFilter}>
+            <SelectTrigger className="w-[140px] sm:w-[160px]">
+              <SelectValue placeholder="All Job Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Job Types</SelectItem>
+              <SelectItem value="Full-time">Full-time</SelectItem>
+              <SelectItem value="Part-time">Part-time</SelectItem>
+              <SelectItem value="Contract">Contract</SelectItem>
+              <SelectItem value="Internship">Internship</SelectItem>
+              <SelectItem value="Freelance">Freelance</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={experienceFilter} onValueChange={setExperienceFilter}>
+            <SelectTrigger className="w-[140px] sm:w-[160px]">
+              <SelectValue placeholder="Any Experience" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any Experience</SelectItem>
+              <SelectItem value="entry">Entry (0-2 yrs)</SelectItem>
+              <SelectItem value="mid">Mid (3-5 yrs)</SelectItem>
+              <SelectItem value="senior">Senior (6+ yrs)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

@@ -37,7 +37,7 @@ import { db } from '@/src/lib/firebase';
 export default function CandidateScreening() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { candidates, jobs } = useData();
+  const { candidates, jobs, addApplication } = useData();
   
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -49,21 +49,13 @@ export default function CandidateScreening() {
   const candidate = candidates.find(c => c.id === id);
   const selectedJob = jobs.find(j => j.id === selectedJobId);
 
-  if (!candidate) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96">
-        <p className="text-muted-foreground mb-4">Candidate not found.</p>
-        <Button onClick={() => navigate('/candidates')}>Back to Candidates</Button>
-      </div>
-    );
-  }
-
   const handleAnalyze = async () => {
     if (!selectedJob) {
       toast.error('Please select a job to screen against');
       return;
     }
-    
+    if (!candidate) return;
+
     setIsAnalyzing(true);
     try {
       const result = await calculateMatchScore(candidate, selectedJob);
@@ -81,6 +73,7 @@ export default function CandidateScreening() {
       toast.error('Please select a job first');
       return;
     }
+    if (!candidate) return;
 
     setIsSaving(true);
     try {
@@ -93,6 +86,17 @@ export default function CandidateScreening() {
         status,
         createdAt: Date.now()
       });
+
+      if (status === 'Relevant') {
+        await addApplication({
+          candidateId: candidate.id,
+          jobId: selectedJobId,
+          status: 'Shortlisted',
+          matchScore: matchResult?.score,
+          notes,
+        });
+      }
+
       toast.success(`Candidate marked as ${status}`);
       navigate('/candidates');
     } catch (error) {
@@ -102,6 +106,15 @@ export default function CandidateScreening() {
       setIsSaving(false);
     }
   };
+
+  if (!candidate) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96">
+        <p className="text-muted-foreground mb-4">Candidate not found.</p>
+        <Button onClick={() => navigate('/candidates')}>Back to Candidates</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">

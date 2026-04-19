@@ -44,21 +44,35 @@ const MONTHLY_DATA = [
   { month: 'Jun', candidates: 300, placements: 22 },
 ];
 
-const PIPELINE_DATA = [
-  { stage: 'Shortlisted', count: 450 },
-  { stage: 'Interview', count: 180 },
-  { stage: 'Offered', count: 45 },
-  { stage: 'Joined', count: 32 },
-];
+import { useData } from '@/src/contexts/DataContext';
 
 const COLORS = ['#2563eb', '#7c3aed', '#ea580c', '#16a34a', '#dc2626'];
 
 export default function Reports() {
   const { user } = useAuth();
+  const { applications, candidates } = useData();
 
   if (user?.role === 'HiringManager') {
     return <Navigate to="/" replace />;
   }
+
+  const pipelineData = React.useMemo(() => {
+    return [
+      { stage: 'Shortlisted', count: applications.filter(a => a.status === 'Shortlisted').length },
+      { stage: 'Interview', count: applications.filter(a => a.status === 'Interview').length },
+      { stage: 'Offered', count: applications.filter(a => a.status === 'Offered').length },
+      { stage: 'Joined', count: applications.filter(a => a.status === 'Joined').length },
+    ];
+  }, [applications]);
+
+  const sourceData = React.useMemo(() => {
+    const sources: Record<string, number> = {};
+    candidates.forEach(c => {
+      const source = c.source || 'Other';
+      sources[source] = (sources[source] || 0) + 1;
+    });
+    return Object.entries(sources).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [candidates]);
 
   return (
     <div className="space-y-8">
@@ -119,7 +133,7 @@ export default function Reports() {
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={PIPELINE_DATA} layout="vertical">
+              <BarChart data={pipelineData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" hide />
                 <YAxis dataKey="stage" type="category" width={100} />
@@ -142,7 +156,7 @@ export default function Reports() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={SOURCE_DATA}
+                  data={sourceData.length ? sourceData : [{ name: 'No Data', value: 1 }]}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -150,17 +164,19 @@ export default function Reports() {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {SOURCE_DATA.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  {(sourceData.length ? sourceData : [{ name: 'No Data', value: 1 }]).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={sourceData.length ? COLORS[index % COLORS.length] : '#e2e8f0'} />
                   ))}
                 </Pie>
-                <Tooltip 
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                />
+                {sourceData.length > 0 && (
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  />
+                )}
               </PieChart>
             </ResponsiveContainer>
             <div className="flex flex-wrap justify-center gap-4 mt-4">
-              {SOURCE_DATA.map((entry, index) => (
+              {sourceData.map((entry, index) => (
                 <div key={entry.name} className="flex items-center gap-1">
                   <div className="h-2 w-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
                   <span className="text-xs text-muted-foreground">{entry.name}</span>
