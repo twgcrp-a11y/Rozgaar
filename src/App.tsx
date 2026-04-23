@@ -14,6 +14,7 @@ import Pipeline from './pages/Pipeline';
 import Reports from './pages/Reports';
 import RecruiterPerformance from './pages/RecruiterPerformance';
 import Recruiters from './pages/Recruiters';
+import TWGMonitoring from './pages/TWGMonitoring';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/src/contexts/AuthContext';
 import { DataProvider } from '@/src/contexts/DataContext';
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/reports" element={<Reports />} />
               <Route path="/performance" element={<RecruiterPerformance />} />
               <Route path="/recruiters" element={<Recruiters />} />
+              <Route path="/twg-portal" element={<TWGMonitoring />} />
             </Routes>
           </Layout>
           <Toaster />

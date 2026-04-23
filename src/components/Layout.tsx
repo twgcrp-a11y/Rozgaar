@@ -17,7 +17,8 @@ import {
   Menu,
   X,
   LogOut,
-  UserCog
+  UserCog,
+  MonitorDot
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -37,6 +38,7 @@ const navItems = [
   { icon: BarChart3, label: 'Reports', href: '/reports' },
   { icon: TrendingUp, label: 'Performance', href: '/performance' },
   { icon: UserCog, label: 'Recruiters', href: '/recruiters', adminOnly: true },
+  { icon: MonitorDot, label: 'TWG Portal', href: '/twg-portal' },
 ];
 
 export function Sidebar({ className }: { className?: string }) {
